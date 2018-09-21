@@ -1,82 +1,124 @@
- #
- # Makefile for msp430
- #
- # 'make' builds everything
- # 'make clean' deletes everything except source files and Makefile
- # You need to set TARGET, MCU and SOURCES for your project.
- # TARGET is the name of the executable file to be produced 
- # $(TARGET).elf $(TARGET).hex and $(TARGET).txt nad $(TARGET).map are all generated.
- # The TXT file is used for BSL loading, the ELF can be used for JTAG use
- # 
- TARGET     = template
- MCU        = msp430g2231
- # List all the source files here
- # eg if you have a source file foo.c then list it here
- SOURCES = launchpad.c
- # Include are located in the Include directory
- INCLUDES = -IInclude
- # Add or subtract whatever MSPGCC flags you want. There are plenty more
- #######################################################################################
- CFLAGS   = -mmcu=$(MCU) -g -Os -Wall -Wunused $(INCLUDES)   
- ASFLAGS  = -mmcu=$(MCU) -x assembler-with-cpp -Wa,-gstabs
- LDFLAGS  = -mmcu=$(MCU) -Wl,-Map=$(TARGET).map
- ########################################################################################
- # x-tools prefix
- XTOOLS   = /home/limak/x-tools/msp430/bin/
- CC       = $(XTOOLS)msp430-gcc
- LD       = $(XTOOLS)msp430-ld
- AR       = $(XTOOLS)msp430-ar
- AS       = $(XTOOLS)msp430-gcc
- GASP     = $(XTOOLS)msp430-gasp
- NM       = $(XTOOLS)msp430-nm
- OBJCOPY  = $(XTOOLS)msp430-objcopy
- RANLIB   = $(XTOOLS)msp430-ranlib
- STRIP    = $(XTOOLS)msp430-strip
- SIZE     = $(XTOOLS)msp430-size
- READELF  = $(XTOOLS)msp430-readelf
- MAKETXT  = srec_cat
- CP       = cp -p
- RM       = rm -f
- MV       = mv
- ########################################################################################
- # the file which will include dependencies
- DEPEND = $(SOURCES:.c=.d)
- # all the object files
- OBJECTS = $(SOURCES:.c=.o)
- all: $(TARGET).elf $(TARGET).hex $(TARGET).txt 
- $(TARGET).elf: $(OBJECTS)
-	echo "Linking $@"
-	$(CC) $(OBJECTS) $(LDFLAGS) $(LIBS) -o $@
-	echo
-	echo ">>>> Size of Firmware <<<<"
-	$(SIZE) $(TARGET).elf
-	echo
- %.hex: %.elf
-	$(OBJCOPY) -O ihex $< $@
- %.txt: %.hex
-	$(MAKETXT) -O $@ -TITXT $< -I
-	unix2dos $(TARGET).txt
- #  The above line is required for the DOS based TI BSL tool to be able to read the txt file generated from linux/unix systems.
- %.o: %.c
-	echo "Compiling $<"
-	$(CC) -c $(CFLAGS) -o $@ $<
- # rule for making assembler source listing, to see the code
- %.lst: %.c
-	$(CC) -c $(ASFLAGS) -Wa,-anlhd $< > $@
- # include the dependencies unless we're going to clean, then forget about them.
- ifneq ($(MAKECMDGOALS), clean)
- -include $(DEPEND)
- endif
- # dependencies file
- # includes also considered, since some of these are our own
- # (otherwise use -MM instead of -M)
- %.d: %.c
-	echo "Generating dependencies $@ from $<"
+# Copyright (C) 2018  Kamil Lulko <kamil.lulko@gmail.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+PROJ_NAME	= blink
+
+# Set toolchain
+MSP430_GCC_PATH	= /home/varcain/tools/toolchains/msp430-gcc
+CROSS_COMPILE	= msp430-elf
+
+# Output paths
+OBJ_DIR		= obj
+DEP_DIR		= dep
+OUT_DIR		= out
+
+PROJ_NAME	:= $(addprefix $(OUT_DIR)/, $(PROJ_NAME))
+
+# Set Tools
+CC		= $(MSP430_GCC_PATH)/bin/$(CROSS_COMPILE)-gcc
+LD		= $(MSP430_GCC_PATH)/bin/$(CROSS_COMPILE)-ld
+AS		= $(MSP430_GCC_PATH)/bin/$(CROSS_COMPILE)-gcc
+OBJCOPY		= $(MSP430_GCC_PATH)/bin/$(CROSS_COMPILE)-objcopy
+OBJDUMP		= $(MSP430_GCC_PATH)/bin/$(CROSS_COMPILE)-objdump
+SIZE		= $(MSP430_GCC_PATH)/bin/$(CROSS_COMPILE)-size
+
+C_SRCS := \
+
+C_SRCS_DIRS = $(sort $(dir $(C_SRCS)))
+
+# Set Dirs
+SRC_DIRS = \
+src \
+
+# Set Include Paths
+INCLUDES	+= \
+-I$(MSP430_GCC_PATH)/include
+
+# Set Board
+MCU		= msp430g2231
+
+# Set Compilation and Linking Flags
+CFLAGS	= -mmcu=$(MCU) -g -Os -Wall -Wunused $(INCLUDES)
+ASFLAGS	= -mmcu=$(MCU) -x assembler-with-cpp -Wa,-gstabs
+LDFLAGS	= -mmcu=$(MCU) -Wl,-Map=$(PROJ_NAME).map -L $(MSP430_GCC_PATH)/include
+
+# Set C sources
+C_SRCS += $(foreach dir, $(SRC_DIRS),$(wildcard $(dir)/*.c))
+# Set asm sources
+S_SRCS := $(foreach dir, $(SRC_DIRS),$(wildcard $(dir)/*.s))
+
+# Filter out specific files
+FILTER_ENTRIES := \
+
+C_SRCS := $(filter-out $(FILTER_ENTRIES),$(C_SRCS))
+
+# Dir fixup
+SRC_DIRS += $(C_SRCS_DIRS)
+
+OBJS := $(foreach src, $(C_SRCS),$(addprefix $(OBJ_DIR)/,$(notdir $(C_SRCS:.c=.o))))
+OBJS += $(foreach src, $(S_SRCS),$(addprefix $(OBJ_DIR)/,$(notdir $(S_SRCS:.s=.o))))
+
+DEPS := $(foreach src, $(C_SRCS),$(addprefix $(DEP_DIR)/,$(notdir $(C_SRCS:.c=.d))))
+DEPS += $(foreach src, $(S_SRCS),$(addprefix $(DEP_DIR)/,$(notdir $(S_SRCS:.s=.d))))
+
+all: mkdir $(PROJ_NAME).hex $(PROJ_NAME).lst $(DEPS) info
+
+$(PROJ_NAME).elf: $(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo $@
+
+$(PROJ_NAME).bin: $(PROJ_NAME).elf
+	$(OBJCOPY) -O binary $(PROJ_NAME).elf $(PROJ_NAME).bin
+	@echo $@
+
+$(PROJ_NAME).hex: $(PROJ_NAME).elf
+	$(OBJCOPY) -O ihex $(PROJ_NAME).elf $(PROJ_NAME).hex
+	@echo $@
+
+$(PROJ_NAME).lst: $(PROJ_NAME).elf
+	@$(OBJDUMP) -h -S $(PROJ_NAME).elf > $(PROJ_NAME).lst
+	@echo $@
+
+# Display Memory Usage Info
+info: $(PROJ_NAME).elf
+	@$(SIZE) --format=berkeley $(PROJ_NAME).elf
+
+vpath %.c $(SRC_DIRS)
+vpath %.s $(SRC_DIRS)
+
+$(OBJ_DIR)/%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+	@echo $@
+
+$(OBJ_DIR)/%.o: %.s
+	$(CC) $(ASFLAGS) -c -o $@ $<
+	@echo $@
+
+$(DEP_DIR)/%.d: %.c
 	$(CC) -M ${CFLAGS} $< >$@
- .SILENT:
- .PHONY:	clean
- clean:
-	-$(RM) $(OBJECTS)
-	-$(RM) $(TARGET).*
-	-$(RM) $(SOURCES:.c=.lst)
-	-$(RM) $(DEPEND)
+	@echo $@
+
+mkdir:
+	@mkdir -p $(OBJ_DIR)
+	@mkdir -p $(DEP_DIR)
+	@mkdir -p $(OUT_DIR)
+
+# debug tool to print variables
+#print-%  : ; @echo $* = $($*)
+
+.SILENT:
+.PHONY:	clean
+clean:
+	rm -rf $(OBJ_DIR) $(DEP_DIR) $(OUT_DIR)
