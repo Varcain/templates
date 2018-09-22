@@ -13,11 +13,40 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+
+############################################################################
+# User configurables
+############################################################################
+
 PROJ_NAME	= blink
 
 # Set toolchain
 MSP430_GCC_PATH	= /home/varcain/tools/toolchains/msp430-gcc
 CROSS_COMPILE	= msp430-elf
+
+# Add individual .c files
+C_SRCS		= \
+
+# Add full source dirs (all contained .c and .s files will be added)
+SRC_DIRS	= \
+		src \
+
+# Filter out specific .c files (use to exclude specific .c files from above)
+FILTER_ENTRIES	= \
+
+INCLUDES	+= \
+		-I$(MSP430_GCC_PATH)/include
+
+MCU		= msp430g2231
+
+USER_CFLAGS	= -g -O0
+
+# mspdebug driver
+DBG_IFACE	= rf2500
+
+############################################################################
+# Internal (usually do not edit)
+############################################################################
 
 # Output paths
 OBJ_DIR		= obj
@@ -34,33 +63,15 @@ OBJCOPY		= $(MSP430_GCC_PATH)/bin/$(CROSS_COMPILE)-objcopy
 OBJDUMP		= $(MSP430_GCC_PATH)/bin/$(CROSS_COMPILE)-objdump
 SIZE		= $(MSP430_GCC_PATH)/bin/$(CROSS_COMPILE)-size
 
-C_SRCS := \
-
-C_SRCS_DIRS = $(sort $(dir $(C_SRCS)))
-
-# Set Dirs
-SRC_DIRS = \
-src \
-
-# Set Include Paths
-INCLUDES	+= \
--I$(MSP430_GCC_PATH)/include
-
-# Set Board
-MCU		= msp430g2231
-
 # Set Compilation and Linking Flags
-CFLAGS	= -mmcu=$(MCU) -g -Os -Wall -Wunused $(INCLUDES)
+CFLAGS	= -mmcu=$(MCU) $(USER_CFLAGS) -Wall -Wunused $(INCLUDES)
 ASFLAGS	= -mmcu=$(MCU) -x assembler-with-cpp -Wa,-gstabs
 LDFLAGS	= -mmcu=$(MCU) -Wl,-Map=$(PROJ_NAME).map -L $(MSP430_GCC_PATH)/include
 
-# Set C sources
-C_SRCS += $(foreach dir, $(SRC_DIRS),$(wildcard $(dir)/*.c))
-# Set asm sources
-S_SRCS := $(foreach dir, $(SRC_DIRS),$(wildcard $(dir)/*.s))
+C_SRCS_DIRS = $(sort $(dir $(C_SRCS)))
 
-# Filter out specific files
-FILTER_ENTRIES := \
+C_SRCS += $(foreach dir, $(SRC_DIRS),$(wildcard $(dir)/*.c))
+S_SRCS := $(foreach dir, $(SRC_DIRS),$(wildcard $(dir)/*.s))
 
 C_SRCS := $(filter-out $(FILTER_ENTRIES),$(C_SRCS))
 
@@ -117,6 +128,9 @@ mkdir:
 
 # debug tool to print variables
 #print-%  : ; @echo $* = $($*)
+
+flash: all
+	@mspdebug $(DBG_IFACE) "prog $(PROJ_NAME).elf"
 
 .SILENT:
 .PHONY:	clean
